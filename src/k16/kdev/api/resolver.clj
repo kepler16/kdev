@@ -6,6 +6,8 @@
    [promesa.core :as p]
    [clojure.string :as str]))
 
+(set! *warn-on-reflection* true)
+
 (def ?Dependency
   [:map
    [:url :string]

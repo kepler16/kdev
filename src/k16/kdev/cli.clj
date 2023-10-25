@@ -5,6 +5,8 @@
    [k16.kdev.commands.run :as cmd.run])
   (:gen-class))
 
+(set! *warn-on-reflection* true)
+
 (def cli-configuration
   {:command "kdev"
    :description "A command-line interface for fetching, composing and running remote docker-compose snippets"

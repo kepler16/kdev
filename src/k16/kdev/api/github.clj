@@ -4,6 +4,8 @@
    [clojure.string :as str]
    [org.httpkit.client :as http]))
 
+(set! *warn-on-reflection* true)
+
 (defn- get-auth-token []
   (let [res (proc/sh ["gh" "auth" "token"])]
     (-> res :out str/trim)))
