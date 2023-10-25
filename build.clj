@@ -5,7 +5,7 @@
 (def basis (b/create-basis {:project "deps.edn"
                             :aliases [:native]}))
 (def class-dir "target/classes")
-(def uber-file "target/cli.jar")
+(def uber-file "target/kdev.jar")
 
 (defn clean [_]
   (b/delete {:path "target"}))

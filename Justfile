@@ -6,11 +6,11 @@ build: clean
 
 native-image:
   $GRAALVM_HOME/bin/native-image \
-    -jar target/cli.jar \
+    -jar target/kdev.jar \
     --no-fallback \
     --enable-preview \
     --features=clj_easy.graal_build_time.InitClojureClasses \
-    -H:Name=target/cli \
+    -H:Name=target/kdev \
     -H:ReflectionConfigurationFiles=./graal/reflect-config.json \
     -H:+ReportUnsupportedElementsAtRuntime \
     -H:+ReportExceptionStackTraces
