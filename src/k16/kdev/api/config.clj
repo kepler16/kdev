@@ -2,23 +2,27 @@
   (:require
    [clojure.edn :as edn]
    [clojure.java.io :as io]
+   [clojure.pprint :as pprint]
    [clojure.string :as str]))
 
 (set! *warn-on-reflection* true)
 
 (defn get-relative-config-path ^java.io.File [& segments]
-  (let [file (io/file (System/getProperty "user.home") ".config/kdev/" (str/join "/" segments))]
+  (let [file (io/file (System/getProperty "user.home") ".config/kdev/" (str/join "/" (flatten segments)))]
     (io/make-parents file)
     file))
 
-(defn get-config-file ^java.io.File [name]
+(defn get-services-file ^java.io.File [name]
   (get-relative-config-path name "services.edn"))
 
 (defn get-lock-file ^java.io.File [name]
   (get-relative-config-path name "services.lock"))
 
-(defn get-docker-compose-file ^java.io.File [config-name service]
-  (get-relative-config-path config-name ".services" (name service) "docker-compose.yaml"))
+(defn from-module-dir ^java.io.File [config-name service & segments]
+  (get-relative-config-path config-name ".services" (name service) (flatten segments)))
+
+(defn from-module-build-dir ^java.io.File [config-name service & segments]
+  (from-module-dir config-name service ".build" segments))
 
 (defn read-edn [^java.io.File file]
   (try
@@ -26,7 +30,8 @@
     (catch Exception _ {})))
 
 (defn write-edn [^java.io.File file data]
-  (spit file (prn-str data)))
+  (let [contents (with-out-str (pprint/pprint data))]
+    (spit file contents)))
 
 (defn list-configurations []
   (let [dir (get-relative-config-path)]

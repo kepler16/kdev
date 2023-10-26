@@ -9,7 +9,7 @@
 (defn- exec-configuration! [{:keys [name services direction]}]
   (let [files (->> services
                    (map (fn [[service]]
-                          (.toString (api.config/get-docker-compose-file name service)))))
+                          (.toString (api.config/from-module-build-dir name service "docker-compose.yaml")))))
 
         direction (if (seq files) direction :down)
         args (case direction

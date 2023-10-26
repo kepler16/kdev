@@ -1,10 +1,10 @@
 (ns k16.kdev.api.resolver
   (:require
    [jsonista.core :as json]
+   [k16.kdev.api.builder :as api.builder]
    [k16.kdev.api.config :as api.config]
    [k16.kdev.api.github :as api.github]
-   [promesa.core :as p]
-   [clojure.string :as str]))
+   [promesa.core :as p]))
 
 (set! *warn-on-reflection* true)
 
@@ -22,11 +22,6 @@
                  (json/read-value json/keyword-keys-object-mapper))]
     (:sha data)))
 
-(defn read-repo-file [identifier sha path]
-  (let [res (api.github/request {:path (str "/repos/" identifier "/contents/" path "?ref=" sha)
-                                 :headers {"Accept" "application/vnd.github.raw"}})]
-    (slurp (:body res))))
-
 (defn resolve-service-sha [{:keys [url sha ref]
                             :or {ref "master"}}]
   (if sha
@@ -38,7 +33,7 @@
        :ref ref})))
 
 (defn resolve-services [{:keys [name update-lockfile?]}]
-  (let [config (api.config/read-edn (api.config/get-config-file name))
+  (let [config (api.config/read-edn (api.config/get-services-file name))
         lock (api.config/read-edn (api.config/get-lock-file name))
 
         services
@@ -64,28 +59,21 @@
     {:services services
      :lockfile-updated? lockfile-updated?}))
 
-(defn pull!
-  ([name] (pull! name false))
-  ([name update-lockfile?]
-   (let [{:keys [services lockfile-updated?]}
-         (resolve-services {:name name
-                            :update-lockfile? update-lockfile?})
+(defn pull! [name {:keys [update-lockfile? force?]}]
+  (let [{:keys [services lockfile-updated?]}
+        (resolve-services {:name name
+                           :update-lockfile? update-lockfile?})
 
-         downloads (when lockfile-updated?
-                     (->> services
-                          (map (fn [[service dependency]]
-                                 (let [{:keys [url sha]} dependency
-                                       sha-short (subs sha 0 7)]
-                                   (p/vthread
-                                    (println (str "Downloading " url "@" sha-short))
-                                    (let [contents (-> (read-repo-file url sha "docker-compose.yaml")
-                                                       (str/replace "{{SHA}}" sha)
-                                                       (str/replace "{{SHA_SHORT}}" sha-short))]
-                                      (spit (api.config/get-docker-compose-file name service) contents))))))
-                          doall))]
+        downloads (when (or lockfile-updated? force?)
+                    (->> services
+                         (map (fn [[service dependency]]
+                                (p/vthread
+                                 (api.builder/build! name (clojure.core/name service) dependency))))
 
-     (when downloads
-       (doseq [download downloads]
-         @download))
+                         doall))]
 
-     lockfile-updated?)))
+    (when downloads
+      (doseq [download downloads]
+        @download))
+
+    lockfile-updated?))

@@ -18,7 +18,7 @@
 
    :runs (fn [props]
            (let [config-name (prompt.config/get-config-name props)
-                 config-file (api.config/get-config-file config-name)
+                 config-file (api.config/get-services-file config-name)
                  services (api.config/read-edn config-file)
 
                  include
@@ -46,7 +46,7 @@
 
              (api.config/write-edn config-file updated-services)
 
-             (api.resolver/pull! config-name)
+             (api.resolver/pull! config-name {})
              (api.executor/start-configuration! {:name config-name
                                                  :services services-with-include})))})
 
@@ -60,8 +60,6 @@
 
    :runs (fn [props]
            (let [name (prompt.config/get-config-name props)]
-
-             (api.resolver/pull! name)
-             (let [services (api.config/read-edn (api.config/get-config-file name))]
+             (let [services (api.config/read-edn (api.config/get-services-file name))]
                (api.executor/stop-configuration! {:name name
                                                   :services services}))))})

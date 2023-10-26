@@ -10,13 +10,13 @@
 
 (defn- edit-config! [props]
   (let [name (prompt.config/get-config-name props)
-        current-config (api.config/read-edn (api.config/get-config-file name))
+        current-config (api.config/read-edn (api.config/get-services-file name))
 
         new-config (-> (prompt.editor/open-editor {:contents (prn-str current-config)
                                                    :filetype ".edn"})
                        edn/read-string)]
 
-    (api.config/write-edn (api.config/get-config-file name) new-config)))
+    (api.config/write-edn (api.config/get-services-file name) new-config)))
 
 (def cmd
   {:command "config"
@@ -40,11 +40,16 @@
 
                          {:option "update"
                           :default false
+                          :type :with-flag}
+                         
+                         {:option "force"
+                          :default false
                           :type :with-flag}]
 
-                  :runs (fn [{:keys [update] :as props}]
+                  :runs (fn [{:keys [update force] :as props}]
                           (let [name (prompt.config/get-config-name props)
-                                updated? (api.resolver/pull! name update)]
+                                updated? (api.resolver/pull! name {:update-lockfile? update
+                                                                   :force? force})]
                             (if updated?
                               (println "Service config updated")
                               (println "Service config is already up to date"))))}]})
