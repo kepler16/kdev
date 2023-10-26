@@ -64,15 +64,27 @@
     (->> (assoc config :compose/services updated-services)
          extract-docker-compose)))
 
+(defn- relative-to [subpath path]
+  (if subpath
+    (str/join "/" [subpath path])
+    path))
+
 (defn build! [group-name service-name dependency]
-  (let [{:keys [sha url]} dependency
+  (let [{:keys [sha url subpath]} dependency
         sha-short (subs sha 0 7)]
     (println (str "Downloading " url "@" sha-short))
-    (let [config (-> (read-repo-file url sha "service.dev.edn")
+    (let [config (-> (read-repo-file url sha (relative-to subpath "service.dev.edn"))
                      (replace-vars {:SHA sha
                                     :SHA_SHORT sha-short})
                      edn/read-string)
           docker-compose (build-docker-compose config)]
+
+      (doseq [file (:kdev/include config)]
+        (println (str "Downloading " file "[" service-name "]"))
+        (let [contents (-> (read-repo-file url sha (relative-to subpath file))
+                           (replace-vars {:SHA sha
+                                          :SHA_SHORT sha-short}))]
+          (spit (api.config/from-module-build-dir group-name service-name file) contents)))
 
       (api.config/write-edn (api.config/from-module-dir group-name service-name "service.dev.edn") config)
       (spit (api.config/from-module-build-dir group-name service-name "docker-compose.yaml") docker-compose))))
