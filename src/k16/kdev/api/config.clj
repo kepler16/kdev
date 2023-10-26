@@ -18,8 +18,11 @@
 (defn get-lock-file ^java.io.File [name]
   (get-relative-config-path name "services.lock"))
 
+(defn from-work-dir ^java.io.File [config-name & segments]
+  (get-relative-config-path config-name ".kdev" (flatten segments)))
+
 (defn from-module-dir ^java.io.File [config-name service & segments]
-  (get-relative-config-path config-name ".services" (name service) (flatten segments)))
+  (from-work-dir config-name ".services" (name service) (flatten segments)))
 
 (defn from-module-build-dir ^java.io.File [config-name service & segments]
   (from-module-dir config-name service ".build" segments))

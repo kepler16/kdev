@@ -1,8 +1,9 @@
 (ns k16.kdev.commands.run
   (:require
+   [k16.kdev.api.config :as api.config]
    [k16.kdev.api.executor :as api.executor]
    [k16.kdev.api.resolver :as api.resolver]
-   [k16.kdev.api.config :as api.config]
+   [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
    [pretty.cli.prompt :as prompt]))
 
@@ -21,34 +22,35 @@
                  config-file (api.config/get-services-file config-name)
                  services (api.config/read-edn config-file)
 
+                 state (api.state/get-state config-name)
+
                  include
                  (prompt/list-checkbox "Select Services"
                                        (->> services
-                                            (map (fn [[service config]]
+                                            (map (fn [[service]]
                                                    {:value (name service)
                                                     :label (name service)
-                                                    :checked (if (boolean? (:enabled config))
-                                                               (:enabled config)
-                                                               true)}))))
+                                                    :checked (get-in state [:services service :enabled] true)}))))
                  include (set include)
 
-                 services-with-include
+                 services-partial
                  (->> services
                       (filter (fn [[service]]
-                                (some #{(name service)} (set include)))))
+                                (some #{(name service)} (set include))))
+                      (into {}))
 
-                 updated-services
-                 (->> services
-                      (map (fn [[service config]]
-                             (let [enabled (boolean (some #{(name service)} include))]
-                               [service (assoc config :enabled enabled)])))
-                      (into {}))]
+                 updated-state
+                 (update state :services
+                         (fn [services]
+                           (->> services
+                                (map (fn [[service]]
+                                       [service {:enabled (boolean (some #{(name service)} include))}])))))]
 
-             (api.config/write-edn config-file updated-services)
+             (api.state/save-state config-name updated-state)
 
              (api.resolver/pull! config-name {})
              (api.executor/start-configuration! {:name config-name
-                                                 :services services-with-include})))})
+                                                 :services services-partial})))})
 
 (def stop-cmd
   {:command "stop"
@@ -59,7 +61,7 @@
            :type :string}]
 
    :runs (fn [props]
-           (let [name (prompt.config/get-config-name props)]
-             (let [services (api.config/read-edn (api.config/get-services-file name))]
-               (api.executor/stop-configuration! {:name name
-                                                  :services services}))))})
+           (let [name (prompt.config/get-config-name props)
+                 services (api.config/read-edn (api.config/get-services-file name))]
+             (api.executor/stop-configuration! {:name name
+                                                :services services})))})
