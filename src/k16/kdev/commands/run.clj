@@ -13,20 +13,19 @@
   {:command "start"
    :description "Start a service configuration"
 
-   :opts [{:option "name"
+   :opts [{:option "group"
            :short 0
            :type :string}]
 
    :runs (fn [props]
-           (let [config-name (prompt.config/get-config-name props)
-                 config-file (api.config/get-services-file config-name)
-                 services (api.config/read-edn config-file)
+           (let [group-name (prompt.config/get-group-name props)
+                 config (api.config/read-edn (api.config/get-config-file group-name))
 
-                 state (api.state/get-state config-name)
+                 state (api.state/get-state group-name)
 
                  include
                  (prompt/list-checkbox "Select Services"
-                                       (->> services
+                                       (->> config
                                             (map (fn [[service]]
                                                    {:value (name service)
                                                     :label (name service)
@@ -34,7 +33,7 @@
                  include (set include)
 
                  services-partial
-                 (->> services
+                 (->> config
                       (filter (fn [[service]]
                                 (some #{(name service)} (set include))))
                       (into {}))
@@ -46,22 +45,22 @@
                                 (map (fn [[service]]
                                        [service {:enabled (boolean (some #{(name service)} include))}])))))]
 
-             (api.state/save-state config-name updated-state)
+             (api.state/save-state group-name updated-state)
 
-             (api.resolver/pull! config-name {})
-             (api.executor/start-configuration! {:name config-name
+             (api.resolver/pull! group-name {})
+             (api.executor/start-configuration! {:group-name group-name
                                                  :services services-partial})))})
 
 (def stop-cmd
   {:command "stop"
    :description "Start a service configuration"
 
-   :opts [{:option "name"
+   :opts [{:option "group"
            :short 0
            :type :string}]
 
    :runs (fn [props]
-           (let [name (prompt.config/get-config-name props)
-                 services (api.config/read-edn (api.config/get-services-file name))]
-             (api.executor/stop-configuration! {:name name
+           (let [group-name (prompt.config/get-group-name props)
+                 services (api.config/read-edn (api.config/get-config-file group-name))]
+             (api.executor/stop-configuration! {:name group-name
                                                 :services services})))})

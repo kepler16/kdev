@@ -6,10 +6,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- exec-configuration! [{:keys [name services direction]}]
+(defn- exec-configuration! [{:keys [group-name services direction]}]
   (let [files (->> services
-                   (map (fn [[service]]
-                          (.toString (api.config/from-module-build-dir name service "docker-compose.yaml")))))
+                   (map (fn [[service-name]]
+                          (.toString (api.config/from-module-build-dir
+                                      group-name service-name "docker-compose.yaml")))))
 
         direction (if (seq files) direction :down)
         args (case direction
@@ -18,7 +19,7 @@
 
     (proc/shell (concat
                  ["docker" "compose"
-                  "--project-name" (str "kdev-" name)]
+                  "--project-name" (str "kdev-" group-name)]
 
                  (if (seq files)
                    ["-f" (str/join "," files)]

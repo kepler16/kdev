@@ -5,8 +5,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn get-config-name [{:keys [name]}]
-  (if name name
-      (let [configurations (api.config/list-configurations)]
-        (prompt/list-select "Select Service Configuration"
-                            configurations))))
+(defn get-group-name [{:keys [group]}]
+  (if group group
+      (let [groups (api.config/list-configuration-groups)]
+        (prompt/list-select "Select Configuration Group" groups))))

@@ -64,7 +64,7 @@
     (->> (assoc config :compose/services updated-services)
          extract-docker-compose)))
 
-(defn build! [config-name service dependency]
+(defn build! [group-name service-name dependency]
   (let [{:keys [sha url]} dependency
         sha-short (subs sha 0 7)]
     (println (str "Downloading " url "@" sha-short))
@@ -74,5 +74,5 @@
                      edn/read-string)
           docker-compose (build-docker-compose config)]
 
-      (api.config/write-edn (api.config/from-module-dir config-name service "service.dev.edn") config)
-      (spit (api.config/from-module-build-dir config-name service "docker-compose.yaml") docker-compose))))
+      (api.config/write-edn (api.config/from-module-dir group-name service-name "service.dev.edn") config)
+      (spit (api.config/from-module-build-dir group-name service-name "docker-compose.yaml") docker-compose))))

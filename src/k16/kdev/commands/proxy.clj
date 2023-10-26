@@ -8,14 +8,14 @@
    [pretty.cli.prompt :as prompt]))
 
 (defn- configure-proxies! [props]
-  (let [config-name (prompt.config/get-config-name props)
-        services (api.config/read-edn (api.config/get-services-file config-name))
+  (let [group-name (prompt.config/get-group-name props)
+        config (api.config/read-edn (api.config/get-config-file group-name))
 
-        state (api.state/get-state config-name)
+        state (api.state/get-state group-name)
 
         include
-        (prompt/list-checkbox "Select Services to Proxy"
-                              (->> services
+        (prompt/list-checkbox "Select proxies to enable"
+                              (->> config
                                    (map (fn [[service]]
                                           {:value (name service)
                                            :label (name service)
@@ -23,7 +23,7 @@
         include (set include)
 
         services-partial
-        (->> services
+        (->> config
              (filter (fn [[service]]
                        (some #{(name service)} (set include))))
              (into {}))
@@ -39,10 +39,10 @@
                                 [service (assoc previous-value :enabled enabled)])))
                        (into {}))))]
 
-    (api.state/save-state config-name updated-state)
+    (api.state/save-state group-name updated-state)
 
-    (api.resolver/pull! config-name {})
-    (api.proxy/write-service-proxies! {:name config-name
+    (api.resolver/pull! group-name {})
+    (api.proxy/write-service-proxies! {:group-name group-name
                                        :services services-partial})))
 
 (def cmd
@@ -52,7 +52,7 @@
    :subcommands [{:command "manage"
                   :description ""
 
-                  :opts [{:option "name"
+                  :opts [{:option "group"
                           :short 0
                           :type :string}]
 

@@ -9,23 +9,23 @@
 (set! *warn-on-reflection* true)
 
 (defn- edit-config! [props]
-  (let [name (prompt.config/get-config-name props)
-        current-config (api.config/read-edn (api.config/get-services-file name))
+  (let [group-name (prompt.config/get-group-name props)
+        current-config (api.config/read-edn (api.config/get-config-file group-name))
 
         new-config (-> (prompt.editor/open-editor {:contents (prn-str current-config)
                                                    :filetype ".edn"})
                        edn/read-string)]
 
-    (api.config/write-edn (api.config/get-services-file name) new-config)))
+    (api.config/write-edn (api.config/get-config-file group-name) new-config)))
 
 (def cmd
   {:command "config"
-   :description "Manage service configurations"
+   :description "Manage service group configurations"
 
    :subcommands [{:command "update"
                   :description "Edit a service configuration"
 
-                  :opts [{:option "name"
+                  :opts [{:option "group"
                           :short 0
                           :type :string}]
 
@@ -34,22 +34,22 @@
                  {:command "pull"
                   :description "Pull a service config"
 
-                  :opts [{:option "name"
+                  :opts [{:option "group"
                           :short 0
                           :type :string}
 
                          {:option "update"
                           :default false
                           :type :with-flag}
-                         
+
                          {:option "force"
                           :default false
                           :type :with-flag}]
 
                   :runs (fn [{:keys [update force] :as props}]
-                          (let [name (prompt.config/get-config-name props)
-                                updated? (api.resolver/pull! name {:update-lockfile? update
-                                                                   :force? force})]
+                          (let [group-name (prompt.config/get-group-name props)
+                                updated? (api.resolver/pull! group-name {:update-lockfile? update
+                                                                         :force? force})]
                             (if updated?
-                              (println "Service config updated")
-                              (println "Service config is already up to date"))))}]})
+                              (println "Services updated")
+                              (println "Services are all up to date"))))}]})

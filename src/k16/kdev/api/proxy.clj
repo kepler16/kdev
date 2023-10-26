@@ -14,7 +14,6 @@
     prefix (str " && PathPrefix(`" prefix "`)")))
 
 (defn project-proxies [proxies]
-  (prn proxies)
   (let [file (get-proxies-projection-file)
         traefik-config
         (->> proxies
@@ -30,13 +29,13 @@
         data (yaml/generate-string traefik-config)]
     (spit file data)))
 
-(defn write-service-proxies! [{:keys [name services]}]
+(defn write-service-proxies! [{:keys [group-name services]}]
   (->> services
        (map (fn [[service-name]]
-              (let [config (api.config/read-edn (api.config/from-module-dir name service-name "service.dev.edn"))]
-                (->> (:kl/proxies config)
+              (let [service-config (api.config/read-edn (api.config/from-module-dir group-name service-name "service.dev.edn"))]
+                (->> (:kl/proxies service-config)
                      (map (fn [[proxy-name proxy]]
-                            [(keyword (str name "-" (clojure.core/name service-name) "-" (clojure.core/name proxy-name)))
+                            [(keyword (str group-name "-" (name service-name) "-" (name proxy-name)))
                              (merge {:url "http://host.docker.internal"} proxy)]))))))
        (apply concat)
        (into {})
