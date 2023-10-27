@@ -41,9 +41,12 @@
                  updated-state
                  (update state :services
                          (fn [services]
-                           (->> services
-                                (map (fn [[service]]
-                                       [service {:enabled (boolean (some #{(name service)} include))}])))))]
+                           (->> config
+                                (map (fn [[service-name]]
+                                       (let [previous-value (get services service-name)
+                                             enabled (boolean (some #{(name service-name)} include))]
+                                         [service-name (assoc previous-value :enabled enabled)])))
+                                (into {}))))]
 
              (api.state/save-state group-name updated-state)
 
@@ -62,5 +65,5 @@
    :runs (fn [props]
            (let [group-name (prompt.config/get-group-name props)
                  services (api.config/read-edn (api.config/get-config-file group-name))]
-             (api.executor/stop-configuration! {:name group-name
+             (api.executor/stop-configuration! {:group-name group-name
                                                 :services services})))})

@@ -4,7 +4,8 @@
    [clojure.edn :as edn]
    [clojure.string :as str]
    [k16.kdev.api.config :as api.config]
-   [k16.kdev.api.github :as api.github]))
+   [k16.kdev.api.github :as api.github]
+   [promesa.core :as p]))
 
 (set! *warn-on-reflection* true)
 
@@ -41,22 +42,22 @@
 
 (defn build-service [service-name service root-config]
   (let [labels
-        (->> (:kl/proxies service)
+        (->> (:kl/routes service)
              (map (fn [proxy-name]
-                    (let [proxy (get-in root-config [:kl/proxies proxy-name])]
+                    (let [proxy (get-in root-config [:kl/routes proxy-name])]
                       (proxy->traefik-label (name service-name) (name proxy-name) proxy)))))]
 
     (-> service
         (assoc :labels labels
                :networks ["kl"]
                :dns "172.5.0.100")
-        (dissoc :kl/proxies))))
+        (dissoc :kl/routes))))
 
 (defn build-docker-compose [config]
   (let [updated-services
         (->> (:compose/services config)
              (map (fn [[name service]]
-                    (if (:kl/proxies service)
+                    (if (:kl/routes service)
                       [name (build-service name service config)]
                       [name service])))
              (into {}))]
@@ -70,21 +71,25 @@
     path))
 
 (defn build! [group-name service-name dependency]
-  (let [{:keys [sha url subpath]} dependency
+  (let [{:keys [sha url subdir]
+         :or {subdir ".kdev"}} dependency
         sha-short (subs sha 0 7)]
     (println (str "Downloading " url "@" sha-short))
-    (let [config (-> (read-repo-file url sha (relative-to subpath "service.dev.edn"))
+    (let [config (-> (read-repo-file url sha (relative-to subdir "service.edn"))
                      (replace-vars {:SHA sha
                                     :SHA_SHORT sha-short})
                      edn/read-string)
           docker-compose (build-docker-compose config)]
 
-      (doseq [file (:kdev/include config)]
-        (println (str "Downloading " file "[" service-name "]"))
-        (let [contents (-> (read-repo-file url sha (relative-to subpath file))
-                           (replace-vars {:SHA sha
-                                          :SHA_SHORT sha-short}))]
-          (spit (api.config/from-module-build-dir group-name service-name file) contents)))
+      @(p/all
+        (->> (:kdev/include config)
+             (map (fn [file]
+                    (p/vthread
+                     (println (str "Downloading " file " [" service-name "]"))
+                     (let [contents (-> (read-repo-file url sha (relative-to subdir file))
+                                        (replace-vars {:SHA sha
+                                                       :SHA_SHORT sha-short}))]
+                       (spit (api.config/from-module-build-dir group-name service-name file) contents)))))))
 
-      (api.config/write-edn (api.config/from-module-dir group-name service-name "service.dev.edn") config)
+      (api.config/write-edn (api.config/from-module-dir group-name service-name "service.edn") config)
       (spit (api.config/from-module-build-dir group-name service-name "docker-compose.yaml") docker-compose))))

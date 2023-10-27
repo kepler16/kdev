@@ -29,11 +29,11 @@
         data (yaml/generate-string traefik-config)]
     (spit file data)))
 
-(defn write-service-proxies! [{:keys [group-name services]}]
+(defn write-service-routes! [{:keys [group-name services]}]
   (->> services
        (map (fn [[service-name]]
-              (let [service-config (api.config/read-edn (api.config/from-module-dir group-name service-name "service.dev.edn"))]
-                (->> (:kl/proxies service-config)
+              (let [service-config (api.config/read-edn (api.config/from-module-dir group-name service-name "service.edn"))]
+                (->> (:kl/routes service-config)
                      (map (fn [[proxy-name proxy]]
                             [(keyword (str group-name "-" (name service-name) "-" (name proxy-name)))
                              (merge {:url "http://host.docker.internal"} proxy)]))))))

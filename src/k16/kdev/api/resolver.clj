@@ -22,15 +22,15 @@
                  (json/read-value json/keyword-keys-object-mapper))]
     (:sha data)))
 
-(defn- resolve-service-sha [{:keys [url sha ref]
+(defn- resolve-service-sha [{:keys [url sha ref subdir]
                              :or {ref "master"}}]
-  (if sha
-    {:url url :sha sha}
-    (do
-      (println (str "Resolving " url))
-      {:url url
-       :sha (get-commit-for-ref url ref)
-       :ref ref})))
+
+  (when-not sha
+    (println (str "Resolving " url (if subdir (str "/" subdir) ""))))
+
+  (let [sha (if sha sha (get-commit-for-ref url ref))]
+    (cond-> {:url url :sha sha :ref ref}
+      subdir (assoc :subdir subdir))))
 
 (defn- resolve-services [{:keys [group-name update-lockfile?]}]
   (let [config (api.config/read-edn (api.config/get-config-file group-name))
@@ -40,10 +40,11 @@
         (->> config
              (map (fn [[service-name dependency]]
                     (p/vthread
-                     (let [{:keys [sha ref] :as lock-entry} (get lock service-name)]
+                     (let [{:keys [sha ref subdir] :as lock-entry} (get lock service-name)]
                        (if (or (not sha)
                                (and (:sha dependency) (not= (:sha dependency) sha))
                                (and (:ref dependency) (not= (:ref dependency) ref))
+                               (and (:subdir dependency) (not= (:subdir dependency) subdir))
                                update-lockfile?)
                          [service-name (resolve-service-sha dependency)]
                          [service-name lock-entry])))))
@@ -54,7 +55,7 @@
         lockfile-updated? (not= services lock)]
 
     (when lockfile-updated?
-      (spit (api.config/get-lock-file group-name) services))
+      (api.config/write-edn (api.config/get-lock-file group-name) services))
 
     {:services services
      :lockfile-updated? lockfile-updated?}))

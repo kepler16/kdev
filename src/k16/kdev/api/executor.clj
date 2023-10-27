@@ -1,7 +1,6 @@
 (ns k16.kdev.api.executor
   (:require
    [babashka.process :as proc]
-   [clojure.string :as str]
    [k16.kdev.api.config :as api.config]))
 
 (set! *warn-on-reflection* true)
@@ -14,18 +13,24 @@
 
         direction (if (seq files) direction :down)
         args (case direction
-               :up ["up" "-d" "--wait" "--remove-orphans"]
-               :down ["down"])]
+               :up ["up" "-d" #_"--wait" "--remove-orphans"]
+               :down ["down"])
 
-    (proc/shell (concat
-                 ["docker" "compose"
-                  "--project-name" (str "kdev-" group-name)]
+        file-args (case direction
+                    :up (->> files
+                             (map (fn [file]
+                                    ["-f" file]))
+                             flatten)
+                    :down [])]
 
-                 (if (seq files)
-                   ["-f" (str/join "," files)]
-                   [])
+    (try
+      (proc/shell (concat
+                   ["docker" "compose"
+                    "--project-name" (str "kdev-" group-name)]
 
-                 args))))
+                   file-args
+                   args))
+      (catch Exception _))))
 
 (defn start-configuration! [props]
   (exec-configuration! (assoc props :direction :up)))

@@ -1,4 +1,4 @@
-(ns k16.kdev.commands.proxy
+(ns k16.kdev.commands.routes
   (:require
    [k16.kdev.api.config :as api.config]
    [k16.kdev.api.proxy :as api.proxy]
@@ -7,7 +7,7 @@
    [k16.kdev.prompt.config :as prompt.config]
    [pretty.cli.prompt :as prompt]))
 
-(defn- configure-proxies! [props]
+(defn- configure-routes! [props]
   (let [group-name (prompt.config/get-group-name props)
         config (api.config/read-edn (api.config/get-config-file group-name))
 
@@ -19,7 +19,7 @@
                                    (map (fn [[service]]
                                           {:value (name service)
                                            :label (name service)
-                                           :checked (get-in state [:proxies service :enabled] false)}))))
+                                           :checked (get-in state [:routes service :enabled] false)}))))
         include (set include)
 
         services-partial
@@ -29,7 +29,7 @@
              (into {}))
 
         updated-state
-        (update state :proxies
+        (update state :routes
                 (fn [proxies]
                   (->> include
                        (map (fn [service]
@@ -42,18 +42,18 @@
     (api.state/save-state group-name updated-state)
 
     (api.resolver/pull! group-name {})
-    (api.proxy/write-service-proxies! {:group-name group-name
-                                       :services services-partial})))
+    (api.proxy/write-service-routes! {:group-name group-name
+                                      :services services-partial})))
 
 (def cmd
-  {:command "proxy"
-   :description "Manage enabled proxies"
+  {:command "routes"
+   :description "Manage host routes"
 
-   :subcommands [{:command "manage"
-                  :description ""
+   :subcommands [{:command "update"
+                  :description "Configure which routes are active"
 
                   :opts [{:option "group"
                           :short 0
                           :type :string}]
 
-                  :runs configure-proxies!}]})
+                  :runs configure-routes!}]})

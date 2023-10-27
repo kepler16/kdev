@@ -18,20 +18,19 @@
 
     (api.config/write-edn (api.config/get-config-file group-name) new-config)))
 
+(defn- pull! [{:keys [update force] :as props}]
+  (let [group-name (prompt.config/get-group-name props)
+        updated? (api.resolver/pull! group-name {:update-lockfile? update
+                                                 :force? force})]
+    (if updated?
+      (println "Services updated")
+      (println "Services are all up to date"))))
+
 (def cmd
   {:command "config"
    :description "Manage service group configurations"
 
-   :subcommands [{:command "update"
-                  :description "Edit a service configuration"
-
-                  :opts [{:option "group"
-                          :short 0
-                          :type :string}]
-
-                  :runs edit-config!}
-
-                 {:command "pull"
+   :subcommands [{:command "pull"
                   :description "Pull a service config"
 
                   :opts [{:option "group"
@@ -46,10 +45,26 @@
                           :default false
                           :type :with-flag}]
 
-                  :runs (fn [{:keys [update force] :as props}]
-                          (let [group-name (prompt.config/get-group-name props)
-                                updated? (api.resolver/pull! group-name {:update-lockfile? update
-                                                                         :force? force})]
-                            (if updated?
-                              (println "Services updated")
-                              (println "Services are all up to date"))))}]})
+                  :runs pull!}
+
+                 {:command "update"
+                  :description "Re-resolve the latest versions of a service config. This is the same as `pull --update`"
+
+                  :opts [{:option "group"
+                          :short 0
+                          :type :string}
+
+                         {:option "force"
+                          :default false
+                          :type :with-flag}]
+
+                  :runs (fn [props] (pull! (assoc props :update true)))}
+
+                 {:command "edit"
+                  :description "Edit a service configuration"
+
+                  :opts [{:option "group"
+                          :short 0
+                          :type :string}]
+
+                  :runs edit-config!}]})
