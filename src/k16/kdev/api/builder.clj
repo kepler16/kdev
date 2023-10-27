@@ -20,6 +20,13 @@
                  (str/replace acc (str "{{" (name key) "}}") value))
                contents)))
 
+(defn replace-volumes [{:keys [group-name service-name includes]} contents]
+  (->> includes
+       (reduce (fn [acc file]
+                 (let [full-path (.toString (api.config/from-module-build-dir group-name service-name file))]
+                   (str/replace acc file full-path)))
+               contents)))
+
 (defn extract-docker-compose [config]
   (->> config
        (filter (fn [[key]]
@@ -53,7 +60,7 @@
                :dns "172.5.0.100")
         (dissoc :kl/routes))))
 
-(defn build-docker-compose [config]
+(defn build-docker-compose [group-name service-name config]
   (let [updated-services
         (->> (:compose/services config)
              (map (fn [[name service]]
@@ -63,7 +70,10 @@
              (into {}))]
 
     (->> (assoc config :compose/services updated-services)
-         extract-docker-compose)))
+         extract-docker-compose
+         (replace-volumes {:group-name group-name
+                           :service-name service-name
+                           :includes (:kdev/include config)}))))
 
 (defn- relative-to [subpath path]
   (if subpath
@@ -79,7 +89,8 @@
                      (replace-vars {:SHA sha
                                     :SHA_SHORT sha-short})
                      edn/read-string)
-          docker-compose (build-docker-compose config)]
+
+          docker-compose (build-docker-compose group-name service-name config)]
 
       @(p/all
         (->> (:kdev/include config)
