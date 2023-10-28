@@ -53,7 +53,7 @@
        (into {})))
 
 (defn pull! [group-name {:keys [update-lockfile? force?]}]
-  (let [config (api.fs/read-edn (api.fs/get-config-file group-name))
+  (let [config (api.fs/read-edn (api.fs/get-root-module-file group-name))
         lock (api.fs/read-edn (api.fs/get-lock-file group-name))
 
         modules (resolve-modules {:config config

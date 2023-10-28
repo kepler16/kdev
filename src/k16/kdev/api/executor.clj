@@ -7,25 +7,27 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- build-docker-compose [config]
+(defn- build-docker-compose [module]
   (let [base (cond-> {:networks {:kl {:external true}}}
-               (:volumes config) (assoc :volumes (:volumes config)))
+               (:volumes module) (assoc :volumes (:volumes module)))
 
         containers
-        (->> (:containers config)
+        (->> (:containers module)
+             (filter (fn [[_ container]]
+                       (get container :enabled true)))
              (map (fn [[container-name container]]
                     [container-name
                      (metamerge/meta-merge {:networks {:kl {}}
                                             :dns "172.5.0.100"}
-                                           container)]))
+                                           (dissoc container :enabled))]))
 
              (into {}))]
 
     (cond-> base
       (seq containers) (assoc :services containers))))
 
-(defn- exec-configuration! [{:keys [group-name config direction]}]
-  (let [compose-data (build-docker-compose config)
+(defn- exec-configuration! [{:keys [group-name module direction]}]
+  (let [compose-data (build-docker-compose module)
         compose-file (api.fs/from-work-dir group-name "docker-compose.yaml")
 
         direction (if (:services compose-data) direction :down)

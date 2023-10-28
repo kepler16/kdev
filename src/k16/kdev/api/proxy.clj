@@ -13,9 +13,9 @@
   (cond-> (str "Host(`" host "`)")
     path-prefix (str " && PathPrefix(`" path-prefix "`)")))
 
-(defn- build-routes [config]
+(defn- build-routes [module]
   (let [services
-        (->> (get-in config [:network :services])
+        (->> (get-in module [:network :services])
              (reduce (fn [acc [service-name service-def]]
                        (->> (:endpoints service-def)
                             (reduce (fn [acc [endpoint-name endpoint]]
@@ -27,10 +27,11 @@
                      {}))
 
         routes
-        (->> (get-in config [:network :routes])
+        (->> (get-in module [:network :routes])
+             (filter (fn [[_ route]] (get route :enabled true)))
              (reduce (fn [acc [route-name route]]
                        (let [service-name (keyword (:service route))
-                             service (get-in config [:network :services service-name])
+                             service (get-in module [:network :services service-name])
 
                              endpoint-name (or (:endpoint route)
                                                (:default-endpoint service))]
@@ -42,8 +43,8 @@
 
     (metamerge/meta-merge services routes)))
 
-(defn write-proxy-config! [{:keys [group-name config]}]
-  (let [routes (build-routes config)
+(defn write-proxy-config! [{:keys [group-name module]}]
+  (let [routes (build-routes module)
         file (get-proxies-projection-file group-name)]
 
     (spit file (yaml/generate-string routes))))

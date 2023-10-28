@@ -12,7 +12,7 @@
     (io/make-parents file)
     file))
 
-(defn get-config-file ^java.io.File [group-name]
+(defn get-root-module-file ^java.io.File [group-name]
   (from-config-dir group-name "config.edn"))
 
 (defn get-lock-file ^java.io.File [group-name]
