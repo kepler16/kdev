@@ -11,9 +11,9 @@
         merged
         (->> sub-modules
              (reduce (fn [acc [module-name]]
-                       (let [config-file (api.fs/from-module-dir group-name module-name "config.edn")
-                             config (api.fs/read-edn config-file)]
-                         (metamerge/meta-merge acc config)))
+                       (let [module-file (api.fs/from-module-dir group-name module-name "module.edn")
+                             module (api.fs/read-edn module-file)]
+                         (metamerge/meta-merge acc module)))
                      {}))]
     (metamerge/meta-merge
      merged
@@ -22,4 +22,4 @@
 
 (defn get-resolved-module [group-name modules]
   (let [root-module (api.fs/read-edn (api.fs/get-root-module-file group-name))]
-    (:dissoc (merge-modules group-name root-module modules) :modules)))
+    (dissoc (merge-modules group-name root-module modules) :modules)))

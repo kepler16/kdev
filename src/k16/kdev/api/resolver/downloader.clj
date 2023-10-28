@@ -45,7 +45,7 @@
 
     (println (str "Downloading " url "@" sha-short))
 
-    (let [config (-> (read-repo-file url sha (relative-to subdir "config.edn"))
+    (let [config (-> (read-repo-file url sha (relative-to subdir "module.edn"))
                      (replace-vars vars)
                      edn/read-string)]
 
@@ -58,4 +58,4 @@
                                         (replace-vars vars))]
                        (spit (io/file build-dir file) contents)))))))
 
-      (api.config/write-edn (api.config/from-module-dir group-name module-name "config.edn") config))))
+      (api.config/write-edn (api.config/from-module-dir group-name module-name "module.edn") config))))

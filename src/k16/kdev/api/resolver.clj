@@ -21,8 +21,8 @@
 
     (:sha data)))
 
-(defn- resolve-dependency-sha [{:keys [url sha ref subdir]
-                                :or {ref "master"}}]
+(defn- resolve-module-sha [{:keys [url sha ref subdir]
+                            :or {ref "master"}}]
 
   (when-not sha
     (println (str "Resolving " url (if subdir (str "/" subdir) ""))))
@@ -31,32 +31,32 @@
     (cond-> {:url url :sha sha :ref ref}
       subdir (assoc :subdir subdir))))
 
-(defn- resolve-modules [{:keys [config lock force-resolve?]}]
-  (->> (:modules config)
-       (map (fn [[service-name dependency]]
+(defn- resolve-modules [{:keys [module lock force-resolve?]}]
+  (->> (:modules module)
+       (map (fn [[module-name module]]
               (p/vthread
-               (let [{:keys [sha ref subdir] :as lock-entry} (get lock service-name)
+               (let [lock-entry (get lock module-name)
 
                      should-resolve?
-                     (or (not sha)
+                     (or (not (:sha lock-entry))
 
-                         (and (:sha dependency) (not= (:sha dependency) sha))
-                         (and (:ref dependency) (not= (:ref dependency) ref))
-                         (and (:subdir dependency) (not= (:subdir dependency) subdir))
+                         (and (:sha module) (not= (:sha module) (:sha lock-entry)))
+                         (and (:ref module) (not= (:ref module) (:ref lock-entry)))
+                         (and (:subdir module) (not= (:subdir module) (:subdir lock-entry)))
 
                          force-resolve?)]
                  (if should-resolve?
-                   [service-name (resolve-dependency-sha dependency)]
-                   [service-name lock-entry])))))
+                   [module-name (resolve-module-sha module)]
+                   [module-name lock-entry])))))
        doall
        (map (fn [promise] @promise))
        (into {})))
 
 (defn pull! [group-name {:keys [update-lockfile? force?]}]
-  (let [config (api.fs/read-edn (api.fs/get-root-module-file group-name))
+  (let [module (api.fs/read-edn (api.fs/get-root-module-file group-name))
         lock (api.fs/read-edn (api.fs/get-lock-file group-name))
 
-        modules (resolve-modules {:config config
+        modules (resolve-modules {:module module
                                   :lock lock
                                   :force-resolve? update-lockfile?})
 

@@ -13,10 +13,10 @@
     file))
 
 (defn get-root-module-file ^java.io.File [group-name]
-  (from-config-dir group-name "config.edn"))
+  (from-config-dir group-name "module.edn"))
 
 (defn get-lock-file ^java.io.File [group-name]
-  (from-config-dir group-name "config.lock.edn"))
+  (from-config-dir group-name "module.lock.edn"))
 
 (defn from-work-dir ^java.io.File [group-name & segments]
   (from-config-dir group-name ".kdev" (flatten segments)))
