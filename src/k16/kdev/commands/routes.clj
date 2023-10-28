@@ -1,7 +1,6 @@
 (ns k16.kdev.commands.routes
   (:require
-   [k16.kdev.api.config :as api.config]
-   [k16.kdev.api.proxy :as api.proxy]
+   [k16.kdev.api.fs :as api.fs]
    [k16.kdev.api.resolver :as api.resolver]
    [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
@@ -9,7 +8,7 @@
 
 (defn- configure-routes! [props]
   (let [group-name (prompt.config/get-group-name props)
-        config (api.config/read-edn (api.config/get-config-file group-name))
+        config (api.fs/read-edn (api.fs/get-config-file group-name))
 
         state (api.state/get-state group-name)
 
@@ -42,7 +41,7 @@
     (api.state/save-state group-name updated-state)
 
     (api.resolver/pull! group-name {})
-    (api.proxy/write-service-routes! {:group-name group-name
+    #_(api.proxy/write-service-routes! {:group-name group-name
                                       :services services-partial})))
 
 (def cmd

@@ -1,106 +1,16 @@
 (ns k16.kdev.api.builder
   (:require
-   [clj-yaml.core :as yaml]
-   [clojure.edn :as edn]
-   [clojure.string :as str]
-   [k16.kdev.api.config :as api.config]
-   [k16.kdev.api.github :as api.github]
-   [promesa.core :as p]))
+   [k16.kdev.api.fs :as api.fs]
+   [meta-merge.core :as metamerge]))
 
 (set! *warn-on-reflection* true)
 
-(defn read-repo-file [identifier sha path]
-  (let [res (api.github/request {:path (str "/repos/" identifier "/contents/" path "?ref=" sha)
-                                 :headers {"Accept" "application/vnd.github.raw"}})]
-    (slurp (:body res))))
-
-(defn replace-vars [contents vars]
-  (->> vars
-       (reduce (fn [acc [key value]]
-                 (str/replace acc (str "{{" (name key) "}}") value))
-               contents)))
-
-(defn replace-volumes [{:keys [group-name service-name includes]} contents]
-  (->> includes
-       (reduce (fn [acc file]
-                 (let [full-path (.toString (api.config/from-module-build-dir group-name service-name file))]
-                   (str/replace acc file full-path)))
-               contents)))
-
-(defn extract-docker-compose [config]
-  (->> config
-       (filter (fn [[key]]
-                 (= "compose" (namespace key))))
-       (map (fn [[key value]]
-              [(name key) value]))
-       (into {})
-       yaml/generate-string))
-
-(defn proxy->traefik-label [service-name proxy-name proxy]
-  (let [key (str "traefik.http.routers.kdev-"
-                 service-name "-" proxy-name
-                 ".rule")
-        value (str "Host(`" (:domain proxy) "`)")
-        value (if (:prefix proxy)
-                (str value " && PathPrefix(`" (:prefix proxy) "`)")
-                value)]
-
-    (str key "=" value)))
-
-(defn build-service [service-name service root-config]
-  (let [labels
-        (->> (:kl/routes service)
-             (map (fn [proxy-name]
-                    (let [proxy (get-in root-config [:kl/routes proxy-name])]
-                      (proxy->traefik-label (name service-name) (name proxy-name) proxy)))))]
-
-    (-> service
-        (assoc :labels labels
-               :networks ["kl"]
-               :dns "172.5.0.100")
-        (dissoc :kl/routes))))
-
-(defn build-docker-compose [group-name service-name config]
-  (let [updated-services
-        (->> (:compose/services config)
-             (map (fn [[name service]]
-                    (if (:kl/routes service)
-                      [name (build-service name service config)]
-                      [name service])))
-             (into {}))]
-
-    (->> (assoc config :compose/services updated-services)
-         extract-docker-compose
-         (replace-volumes {:group-name group-name
-                           :service-name service-name
-                           :includes (:kdev/include config)}))))
-
-(defn- relative-to [subpath path]
-  (if subpath
-    (str/join "/" [subpath path])
-    path))
-
-(defn build! [group-name service-name dependency]
-  (let [{:keys [sha url subdir]
-         :or {subdir ".kdev"}} dependency
-        sha-short (subs sha 0 7)]
-    (println (str "Downloading " url "@" sha-short))
-    (let [config (-> (read-repo-file url sha (relative-to subdir "service.edn"))
-                     (replace-vars {:SHA sha
-                                    :SHA_SHORT sha-short})
-                     edn/read-string)
-
-          docker-compose (build-docker-compose group-name service-name config)]
-
-      @(p/all
-        (->> (:kdev/include config)
-             (map (fn [file]
-                    (p/vthread
-                     (println (str "Downloading " file " [" service-name "]"))
-                     (let [contents (-> (read-repo-file url sha (relative-to subdir file))
-                                        (replace-vars {:SHA sha
-                                                       :SHA_SHORT sha-short}))]
-                       (spit (api.config/from-module-build-dir group-name service-name file) contents)))))))
-
-      (api.config/write-edn (api.config/from-module-dir group-name service-name "service.edn") config)
-      (spit (api.config/from-module-build-dir group-name service-name "docker-compose.yaml") docker-compose))))
+(defn merge-modules [group-name root-config modules]
+  (let [merged
+        (->> modules
+             (reduce (fn [acc [module-name]]
+                       (let [config-file (api.fs/from-module-dir group-name module-name "config.edn")
+                             config (api.fs/read-edn config-file)]
+                         (metamerge/meta-merge acc config)))
+                     {}))]
+    (metamerge/meta-merge merged root-config)))

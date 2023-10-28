@@ -1,4 +1,4 @@
-(ns k16.kdev.api.config
+(ns k16.kdev.api.fs
   (:require
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -18,14 +18,14 @@
 (defn get-lock-file ^java.io.File [group-name]
   (from-config-dir group-name "config.lock.edn"))
 
-(defn from-work-dir ^java.io.File [config-name & segments]
-  (from-config-dir config-name ".kdev" (flatten segments)))
+(defn from-work-dir ^java.io.File [group-name & segments]
+  (from-config-dir group-name ".kdev" (flatten segments)))
 
-(defn from-module-dir ^java.io.File [config-name service & segments]
-  (from-work-dir config-name ".services" (name service) (flatten segments)))
+(defn from-module-dir ^java.io.File [group-name module-name & segments]
+  (from-work-dir group-name ".modules" (name module-name) (flatten segments)))
 
-(defn from-module-build-dir ^java.io.File [config-name service & segments]
-  (from-module-dir config-name service ".build" segments))
+(defn from-module-build-dir ^java.io.File [group-name module-name & segments]
+  (from-module-dir group-name module-name "build" segments))
 
 (defn read-edn [^java.io.File file]
   (try

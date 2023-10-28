@@ -1,29 +1,28 @@
 (ns k16.kdev.api.resolver
   (:require
+   [cli-matic.utils :as cli.util]
    [jsonista.core :as json]
-   [k16.kdev.api.builder :as api.builder]
-   [k16.kdev.api.config :as api.config]
+   [k16.kdev.api.fs :as api.fs]
    [k16.kdev.api.github :as api.github]
+   [k16.kdev.api.resolver.downloader :as resolver.downloader]
    [promesa.core :as p]))
 
 (set! *warn-on-reflection* true)
-
-(def ?Dependency
-  [:map
-   [:url :string]
-   [:sha {:optional true} :string]
-   [:ref {:optional true} :string]
-   [:template-params {:optional true} [:map {:closed false}]]])
 
 (defn- get-commit-for-ref [identifier ref]
   (let [res (api.github/request {:path (str "/repos/" identifier "/commits/" ref)})
         data (-> res
                  :body
                  (json/read-value json/keyword-keys-object-mapper))]
+
+    (when (not= 200 (:status res))
+      (println (str "Failed to resolve " identifier "@" ref))
+      (cli.util/exit! (:message data) 1))
+
     (:sha data)))
 
-(defn- resolve-service-sha [{:keys [url sha ref subdir]
-                             :or {ref "master"}}]
+(defn- resolve-dependency-sha [{:keys [url sha ref subdir]
+                                :or {ref "master"}}]
 
   (when-not sha
     (println (str "Resolving " url (if subdir (str "/" subdir) ""))))
@@ -32,49 +31,54 @@
     (cond-> {:url url :sha sha :ref ref}
       subdir (assoc :subdir subdir))))
 
-(defn- resolve-services [{:keys [group-name update-lockfile?]}]
-  (let [config (api.config/read-edn (api.config/get-config-file group-name))
-        lock (api.config/read-edn (api.config/get-lock-file group-name))
+(defn- resolve-modules [{:keys [config lock force-resolve?]}]
+  (->> (:modules config)
+       (map (fn [[service-name dependency]]
+              (p/vthread
+               (let [{:keys [sha ref subdir] :as lock-entry} (get lock service-name)
 
-        services
-        (->> config
-             (map (fn [[service-name dependency]]
-                    (p/vthread
-                     (let [{:keys [sha ref subdir] :as lock-entry} (get lock service-name)]
-                       (if (or (not sha)
-                               (and (:sha dependency) (not= (:sha dependency) sha))
-                               (and (:ref dependency) (not= (:ref dependency) ref))
-                               (and (:subdir dependency) (not= (:subdir dependency) subdir))
-                               update-lockfile?)
-                         [service-name (resolve-service-sha dependency)]
-                         [service-name lock-entry])))))
-             doall
-             (map (fn [promise] @promise))
-             (into {}))
+                     should-resolve?
+                     (or (not sha)
 
-        lockfile-updated? (not= services lock)]
+                         (and (:sha dependency) (not= (:sha dependency) sha))
+                         (and (:ref dependency) (not= (:ref dependency) ref))
+                         (and (:subdir dependency) (not= (:subdir dependency) subdir))
 
-    (when lockfile-updated?
-      (api.config/write-edn (api.config/get-lock-file group-name) services))
-
-    {:services services
-     :lockfile-updated? lockfile-updated?}))
+                         force-resolve?)]
+                 (if should-resolve?
+                   [service-name (resolve-dependency-sha dependency)]
+                   [service-name lock-entry])))))
+       doall
+       (map (fn [promise] @promise))
+       (into {})))
 
 (defn pull! [group-name {:keys [update-lockfile? force?]}]
-  (let [{:keys [services lockfile-updated?]}
-        (resolve-services {:group-name group-name
-                           :update-lockfile? update-lockfile?})
+  (let [config (api.fs/read-edn (api.fs/get-config-file group-name))
+        lock (api.fs/read-edn (api.fs/get-lock-file group-name))
+
+        modules (resolve-modules {:config config
+                                  :lock lock
+                                  :force-resolve? update-lockfile?})
+
+        lockfile-updated? (not= modules lock)
 
         downloads (when (or lockfile-updated? force?)
-                    (->> services
-                         (map (fn [[service dependency]]
+                    (->> modules
+                         (map (fn [[module-name module]]
                                 (p/vthread
-                                 (api.builder/build! group-name (clojure.core/name service) dependency))))
+                                 (resolver.downloader/download-remote-module!
+                                  {:group-name group-name
+                                   :module-name (name module-name)
+                                   :module module}))))
 
                          doall))]
+
+    (when lockfile-updated?
+      (api.fs/write-edn (api.fs/get-lock-file group-name) modules))
 
     (when downloads
       (doseq [download downloads]
         @download))
 
-    lockfile-updated?))
+    {:modules modules
+     :lockfile-updated? lockfile-updated?}))

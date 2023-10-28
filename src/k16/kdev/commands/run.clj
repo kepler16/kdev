@@ -1,7 +1,9 @@
 (ns k16.kdev.commands.run
   (:require
-   [k16.kdev.api.config :as api.config]
+   [k16.kdev.api.builder :as api.builder]
    [k16.kdev.api.executor :as api.executor]
+   [k16.kdev.api.fs :as api.fs]
+   [k16.kdev.api.proxy :as api.proxy]
    [k16.kdev.api.resolver :as api.resolver]
    [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
@@ -19,40 +21,45 @@
 
    :runs (fn [props]
            (let [group-name (prompt.config/get-group-name props)
-                 config (api.config/read-edn (api.config/get-config-file group-name))
+                 config (api.fs/read-edn (api.fs/get-config-file group-name))
+
+                 {:keys [modules]} (api.resolver/pull! group-name {})
+                 merged-config (api.builder/merge-modules group-name config modules)
 
                  state (api.state/get-state group-name)
 
-                 include
-                 (prompt/list-checkbox "Select Services"
-                                       (->> config
-                                            (map (fn [[service]]
-                                                   {:value (name service)
-                                                    :label (name service)
-                                                    :checked (get-in state [:services service :enabled] true)}))))
-                 include (set include)
+                 options (->> (:containers merged-config)
+                              (map (fn [[container-name]]
+                                     {:value (name container-name)
+                                      :label (name container-name)
+                                      :checked (get-in state [:containers container-name] true)})))
+                 selected-containers (->> options
+                                          (prompt/list-checkbox "Select Services")
+                                          set)
 
-                 services-partial
-                 (->> config
-                      (filter (fn [[service]]
-                                (some #{(name service)} (set include))))
+                 partial-containers
+                 (->> (:containers merged-config)
+                      (filter (fn [[container-name]]
+                                (some #{(name container-name)} selected-containers)))
                       (into {}))
 
                  updated-state
-                 (update state :services
-                         (fn [services]
-                           (->> config
-                                (map (fn [[service-name]]
-                                       (let [previous-value (get services service-name)
-                                             enabled (boolean (some #{(name service-name)} include))]
-                                         [service-name (assoc previous-value :enabled enabled)])))
-                                (into {}))))]
+                 (assoc state :containers
+                        (->> (:containers merged-config)
+                             (map (fn [[container-name]]
+                                    (let [enabled (boolean (some #{(name container-name)} selected-containers))]
+                                      [container-name enabled])))
+                             (into {})))
+
+                 config-with-selection
+                 (assoc merged-config :containers partial-containers)]
 
              (api.state/save-state group-name updated-state)
 
-             (api.resolver/pull! group-name {})
+             (api.proxy/write-proxy-config! {:group-name group-name
+                                             :config merged-config})
              (api.executor/start-configuration! {:group-name group-name
-                                                 :services services-partial})))})
+                                                 :config config-with-selection})))})
 
 (def stop-cmd
   {:command "stop"
@@ -64,6 +71,6 @@
 
    :runs (fn [props]
            (let [group-name (prompt.config/get-group-name props)
-                 services (api.config/read-edn (api.config/get-config-file group-name))]
+                 services (api.fs/read-edn (api.fs/get-config-file group-name))]
              (api.executor/stop-configuration! {:group-name group-name
                                                 :services services})))})

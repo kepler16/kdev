@@ -2,41 +2,48 @@
   (:require
    [clj-yaml.core :as yaml]
    [clojure.java.io :as io]
-   [k16.kdev.api.config :as api.config]))
+   [meta-merge.core :as metamerge]))
 
-(defn get-proxies-projection-file []
-  (let [file (io/file (System/getProperty "user.home") ".config/kl/proxy/kdev-managed.yaml")]
+(defn- get-proxies-projection-file [group-name]
+  (let [file (io/file (System/getProperty "user.home") (str ".config/kl/proxy/kdev-" group-name ".yaml"))]
     (io/make-parents file)
     file))
 
-(defn proxy->routing-rule [{:keys [domain prefix]}]
-  (cond-> (str "Host(`" domain "`)")
-    prefix (str " && PathPrefix(`" prefix "`)")))
+(defn- route->traefik-rule [{:keys [host path-prefix]}]
+  (cond-> (str "Host(`" host "`)")
+    path-prefix (str " && PathPrefix(`" path-prefix "`)")))
 
-(defn project-proxies [proxies]
-  (let [file (get-proxies-projection-file)
-        traefik-config
-        (->> proxies
-             (reduce (fn [acc [name proxy]]
-                       (-> acc
-                           (assoc-in [:http :routers name]
-                                     {:rule (proxy->routing-rule proxy)
-                                      :service name})
-                           (assoc-in [:http :services name :loadbalancer :servers]
-                                     [{:url (:url proxy)}])))
+(defn- build-routes [config]
+  (let [services
+        (->> (get-in config [:network :services])
+             (reduce (fn [acc [service-name service-def]]
+                       (->> (:endpoints service-def)
+                            (reduce (fn [acc [endpoint-name endpoint]]
+                                      (let [full-name (str (name service-name) "-" (name endpoint-name))]
+                                        (assoc-in acc [:http :services full-name :loadbalancer :servers]
+                                                  [{:url (:url endpoint)}])))
+                                    acc)))
+
                      {}))
 
-        data (yaml/generate-string traefik-config)]
-    (spit file data)))
+        routes
+        (->> (get-in config [:network :routes])
+             (reduce (fn [acc [route-name route]]
+                       (let [service-name (keyword (:service route))
+                             service (get-in config [:network :services service-name])
 
-(defn write-service-routes! [{:keys [group-name services]}]
-  (->> services
-       (map (fn [[service-name]]
-              (let [service-config (api.config/read-edn (api.config/from-module-dir group-name service-name "service.edn"))]
-                (->> (:kl/routes service-config)
-                     (map (fn [[proxy-name proxy]]
-                            [(keyword (str group-name "-" (name service-name) "-" (name proxy-name)))
-                             (merge {:url "http://host.docker.internal"} proxy)]))))))
-       (apply concat)
-       (into {})
-       project-proxies))
+                             endpoint-name (or (:endpoint route)
+                                               (:default-endpoint service))]
+
+                         (assoc-in acc [:http :routers (name route-name)]
+                                   {:rule (route->traefik-rule route)
+                                    :service (str (name service-name) "-" (name endpoint-name))})))
+                     {}))]
+
+    (metamerge/meta-merge services routes)))
+
+(defn write-proxy-config! [{:keys [group-name config]}]
+  (let [routes (build-routes config)
+        file (get-proxies-projection-file group-name)]
+
+    (spit file (yaml/generate-string routes))))
