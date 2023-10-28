@@ -7,13 +7,14 @@
    [k16.kdev.api.resolver :as api.resolver]
    [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
+   [meta-merge.core :as metamerge]
    [pretty.cli.prompt :as prompt]))
 
 (set! *warn-on-reflection* true)
 
-(def start-cmd
-  {:command "start"
-   :description "Start a service configuration"
+(def run-cmd
+  {:command "run"
+   :description "Select containers in a module to run"
 
    :opts [{:option "group"
            :short 0
@@ -21,9 +22,9 @@
 
    :runs (fn [props]
            (let [group-name (prompt.config/get-group-name props)
-                 _ (api.resolver/pull! group-name {})
 
-                 module (api.module/get-resolved-module group-name)
+                 {:keys [modules]} (api.resolver/pull! group-name {})
+                 module (api.module/get-resolved-module group-name modules)
 
                  state (api.state/get-state group-name)
 
@@ -46,15 +47,15 @@
 
              (api.state/save-state group-name updated-state)
 
-             (let [module (api.module/get-resolved-module group-name)]
+             (let [module (metamerge/meta-merge module updated-state)]
                (api.proxy/write-proxy-config! {:group-name group-name
                                                :module module})
                (api.executor/start-configuration! {:group-name group-name
                                                    :module module}))))})
 
 (def stop-cmd
-  {:command "stop"
-   :description "Start a service configuration"
+  {:command "down"
+   :description "Stop all running containers for a module"
 
    :opts [{:option "group"
            :short 0

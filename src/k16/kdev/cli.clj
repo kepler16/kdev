@@ -13,7 +13,7 @@
    :description "A command-line interface for fetching, composing and running remote docker-compose snippets"
    :version "0.0.0"
    :subcommands (concat
-                 [cmd.run/start-cmd cmd.run/stop-cmd cmd.network/cmd]
+                 [cmd.run/run-cmd cmd.run/stop-cmd cmd.network/cmd]
                  (:subcommands cmd.config/cmd))})
 
 (defn -main [& args]

@@ -1,14 +1,19 @@
 (ns k16.kdev.commands.network
   (:require
-   [k16.kdev.api.module :as api.builder]
+   [k16.kdev.api.module :as api.module]
    [k16.kdev.api.proxy :as api.proxy]
+   [k16.kdev.api.resolver :as api.resolver]
    [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
+   [meta-merge.core :as metamerge]
    [pretty.cli.prompt :as prompt]))
 
 (defn- set-default-service-endpoint! [props]
   (let [group-name (prompt.config/get-group-name props)
-        module (api.builder/get-resolved-module group-name)
+
+        {:keys [modules]} (api.resolver/pull! group-name {})
+        module (api.module/get-resolved-module group-name modules)
+
         state (api.state/get-state group-name)
 
         service-name
@@ -35,7 +40,7 @@
 
     (api.state/save-state group-name updated-state)
 
-    (let [module (api.builder/get-resolved-module group-name)]
+    (let [module (metamerge/meta-merge module updated-state)]
       (api.proxy/write-proxy-config! {:group-name group-name
                                       :module module}))))
 
@@ -44,9 +49,11 @@
    :description "Manage networking components"
 
    :subcommands [{:command "service"
-                  :description "Configure network services"
+                  :description "Manage network services"
 
-                  :subcommands [{:command "select-endpoint"
+                  :subcommands [{:command "set-endpoint"
+                                 :description "Set the default endpoint for a service"
+
                                  :opts [{:option "group"
                                          :short 0
                                          :type :string}]
@@ -54,18 +61,29 @@
                                  :runs set-default-service-endpoint!}]}
 
                  {:command "route"
-                  :description "Configure network services"
+                  :description "Manage network routes"
 
                   :subcommands [{:command "configure"
+                                 :description "Select which routes are enabled or disabled"
+
                                  :opts [{:option "group"
                                          :short 0
                                          :type :string}]
 
                                  :runs (fn [_])}
 
-                                {:command "select-endpoint"
+                                {:command "set-service"
+                                 :description "Set the service for a route"
+
                                  :opts [{:option "group"
                                          :short 0
                                          :type :string}]
 
-                                 :runs (fn [_])}]}]})
+                                 :runs (fn [_])} {:command "set-endpoint"
+                                                  :description "Set the endpoint for a route"
+
+                                                  :opts [{:option "group"
+                                                          :short 0
+                                                          :type :string}]
+
+                                                  :runs (fn [_])}]}]})
