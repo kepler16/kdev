@@ -1,4 +1,4 @@
-(ns k16.kdev.commands.run
+(ns k16.kdev.commands.container
   (:require
    [k16.kdev.api.executor :as api.executor]
    [k16.kdev.api.fs :as api.fs]
@@ -7,14 +7,39 @@
    [k16.kdev.api.resolver :as api.resolver]
    [k16.kdev.api.state :as api.state]
    [k16.kdev.prompt.config :as prompt.config]
+   [clojure.pprint :as pprint]
    [meta-merge.core :as metamerge]
    [pretty.cli.prompt :as prompt]))
 
 (set! *warn-on-reflection* true)
 
-(def run-cmd
+(def ^:private list-cmd
+  {:command "list"
+   :description "Select containers to run"
+
+   :opts [{:option "group"
+           :short 0
+           :type :string}]
+
+   :runs (fn [props]
+           (let [group-name (prompt.config/get-group-name props)
+
+                 {:keys [modules]} (api.resolver/pull! group-name {})
+                 module (api.module/get-resolved-module group-name modules)
+
+                 state (api.state/get-state group-name)
+
+                 containers (->> (:containers module)
+                                 (map (fn [[container-name container]]
+                                        (merge container
+                                               {:name (name container-name)
+                                                :enabled (get-in state [:containers container-name :enabled] true)}))))]
+
+             (pprint/print-table [:name :enabled] containers)))})
+
+(def ^:private run-cmd
   {:command "run"
-   :description "Select containers in a module to run"
+   :description "Select containers to run"
 
    :opts [{:option "group"
            :short 0
@@ -53,9 +78,9 @@
                (api.executor/start-configuration! {:group-name group-name
                                                    :module module}))))})
 
-(def stop-cmd
+(def ^:private stop-cmd
   {:command "down"
-   :description "Stop all running containers for a module"
+   :description "Stop all running containers "
 
    :opts [{:option "group"
            :short 0
@@ -66,3 +91,9 @@
                  services (api.fs/read-edn (api.fs/get-root-module-file group-name))]
              (api.executor/stop-configuration! {:group-name group-name
                                                 :services services})))})
+
+(def cmd
+  {:command "containers"
+   :description "Manage module containers"
+
+   :subcommands [list-cmd run-cmd stop-cmd]})

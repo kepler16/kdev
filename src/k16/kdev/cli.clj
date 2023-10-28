@@ -3,7 +3,7 @@
    [cli-matic.core :refer [run-cmd]]
    [k16.kdev.commands.config :as cmd.config]
    [k16.kdev.commands.network :as cmd.network]
-   [k16.kdev.commands.run :as cmd.run])
+   [k16.kdev.commands.container :as cmd.container])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -13,7 +13,8 @@
    :description "A command-line interface for fetching, composing and running remote docker-compose snippets"
    :version "0.0.0"
    :subcommands (concat
-                 [cmd.run/run-cmd cmd.run/stop-cmd cmd.network/cmd]
+                 [cmd.container/cmd]
+                 (:subcommands cmd.network/cmd)
                  (:subcommands cmd.config/cmd))})
 
 (defn -main [& args]
