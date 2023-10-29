@@ -12,6 +12,9 @@
     (io/make-parents file)
     file))
 
+(defn get-config-file ^java.io.File []
+  (from-config-dir "kdev.edn"))
+
 (defn get-root-module-file ^java.io.File [group-name]
   (from-config-dir group-name "module.edn"))
 
@@ -39,6 +42,8 @@
 (defn list-configuration-groups []
   (let [dir (from-config-dir)]
     (->> (.listFiles dir)
+         (filter (fn [^java.io.File file]
+                   (.isDirectory file)))
          (map (fn [^java.io.File file]
                 (.getName file)))
          (filter (fn [name]

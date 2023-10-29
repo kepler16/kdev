@@ -5,7 +5,12 @@
 
 (set! *warn-on-reflection* true)
 
-(defn get-group-name [{:keys [group]}]
-  (if group group
-      (let [groups (api.fs/list-configuration-groups)]
-        (prompt/list-select "Select Configuration Group" groups))))
+(defn get-group-name [{:keys [group skip-default?]}]
+  (let [{:keys [default-module]} (api.fs/read-edn (api.fs/get-config-file))]
+    (cond
+      group group
+
+      (and default-module (not skip-default?)) default-module
+
+      :else (let [groups (api.fs/list-configuration-groups)]
+              (prompt/list-select "Select Configuration Group" groups)))))

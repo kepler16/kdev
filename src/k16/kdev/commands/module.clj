@@ -1,7 +1,8 @@
-(ns k16.kdev.commands.config
+(ns k16.kdev.commands.module
   (:require
    [k16.kdev.api.resolver :as api.resolver]
-   [k16.kdev.prompt.config :as prompt.config]))
+   [k16.kdev.prompt.config :as prompt.config]
+   [k16.kdev.api.fs :as api.fs]))
 
 (set! *warn-on-reflection* true)
 
@@ -13,12 +14,23 @@
       (println "Services updated")
       (println "Services are all up to date"))))
 
-(def cmd
-  {:command "config"
-   :description "Manage service group configurations"
+(defn- set-default-module! [props]
+  (let [group-name (prompt.config/get-group-name (assoc props :skip-default? true))]
+    (api.fs/write-edn (api.fs/get-config-file) {:default-module group-name})))
 
-   :subcommands [{:command "pull"
-                  :description "Pull a service config"
+(def cmd
+  {:command "module"
+   :description "Manage module configurations"
+
+   :subcommands [{:command "set-default"
+                  :description "Set the default module"
+                  :opts [{:option "group"
+                          :short 0
+                          :type :string}]
+                  :runs set-default-module!}
+
+                 {:command "pull"
+                  :description "Pull down changes to a module"
 
                   :opts [{:option "group"
                           :short 0
@@ -35,7 +47,7 @@
                   :runs pull!}
 
                  {:command "update"
-                  :description "Re-resolve the latest versions of a service config. This is the same as `pull --update`"
+                  :description "Resolve the latest sha's of a module. This is the same as `pull --update`"
 
                   :opts [{:option "group"
                           :short 0
@@ -45,4 +57,5 @@
                           :default false
                           :type :with-flag}]
 
-                  :runs (fn [props] (pull! (assoc props :update true)))}]})
+                  :runs (fn [props]
+                          (pull! (assoc props :update true)))}]})

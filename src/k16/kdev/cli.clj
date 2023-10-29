@@ -1,7 +1,7 @@
 (ns k16.kdev.cli
   (:require
    [cli-matic.core :refer [run-cmd]]
-   [k16.kdev.commands.config :as cmd.config]
+   [k16.kdev.commands.module :as cmd.module]
    [k16.kdev.commands.network :as cmd.network]
    [k16.kdev.commands.container :as cmd.container])
   (:gen-class))
@@ -15,7 +15,7 @@
    :subcommands (concat
                  [cmd.container/cmd]
                  (:subcommands cmd.network/cmd)
-                 (:subcommands cmd.config/cmd))})
+                 [cmd.module/cmd])})
 
 (defn -main [& args]
   (run-cmd args cli-configuration))
